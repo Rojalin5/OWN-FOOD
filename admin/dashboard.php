@@ -4,55 +4,58 @@ session_start();
 
 require_once("../config/db.php");
 
-// Must be logged in
+
+// User must be logged in
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../log-in.php");
     exit();
 }
 
-// Must be admin
-if ($_SESSION["role"] !== "admin") {
+
+// Only admin can access
+if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "admin") {
     header("Location: ../user/dashboard.php");
     exit();
 }
 
 
-// Total users
-$user_result = $conn->query(
+// Total Users
+$userResult = $conn->query(
     "SELECT COUNT(*) AS total FROM users WHERE role = 'user'"
 );
 
-$total_users = $user_result->fetch_assoc()["total"];
+$totalUsers = $userResult->fetch_assoc()["total"];
 
 
-// Total menu items
-$food_result = $conn->query(
+// Total Food Items
+$foodResult = $conn->query(
     "SELECT COUNT(*) AS total FROM menu_items"
 );
 
-$total_foods = $food_result->fetch_assoc()["total"];
+$totalFoods = $foodResult->fetch_assoc()["total"];
 
 
-// Total orders
-$order_result = $conn->query(
+// Total Orders
+$orderResult = $conn->query(
     "SELECT COUNT(*) AS total FROM orders"
 );
 
-$total_orders = $order_result->fetch_assoc()["total"];
+$totalOrders = $orderResult->fetch_assoc()["total"];
 
 
-// Pending orders
-$pending_result = $conn->query(
+// Pending Orders
+$pendingResult = $conn->query(
     "SELECT COUNT(*) AS total
      FROM orders
      WHERE order_status = 'Pending'"
 );
 
-$pending_orders = $pending_result->fetch_assoc()["total"];
+$totalPending = $pendingResult->fetch_assoc()["total"];
 
 ?>
 
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -76,51 +79,70 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
 
 <body class="bg-light">
 
-<div class="container py-5">
 
-    <!-- HEADER -->
+<!-- NAVBAR -->
 
-    <div class="d-flex justify-content-between align-items-center mb-5">
+<nav class="navbar bg-white border-bottom">
 
-        <div>
-
-            <h2 class="fw-bold">
-                Admin Dashboard
-            </h2>
-
-            <p class="text-muted mb-0">
-
-                Welcome,
-                <?php
-                echo htmlspecialchars(
-                    $_SESSION["full_name"]
-                );
-                ?>
-
-            </p>
-
-        </div>
+    <div class="container py-2">
 
         <a
-            href="../auth/logout.php"
-            class="btn btn-outline-danger">
+            href="dashboard.php"
+            class="navbar-brand fw-bold">
 
-            <i class="bi bi-box-arrow-right"></i>
-            Logout
+            🍔 OwnFood Admin
 
         </a>
 
+
+        <div>
+
+            <a
+                href="../auth/logout.php"
+                class="btn btn-outline-danger btn-sm">
+
+                Logout
+
+            </a>
+
+        </div>
+
     </div>
 
+</nav>
 
-    <!-- STATISTICS -->
 
-    <div class="row g-4 mb-5">
+<!-- DASHBOARD -->
 
+<div class="container py-5">
+
+
+<div class="mb-5">
+
+    <p class="text-muted mb-1">
+        Hello, Admin 👋
+    </p>
+
+    <h2 class="fw-bold">
+        Admin Dashboard
+    </h2>
+
+    <p class="text-muted">
+        Manage your OwnFood platform.
+    </p>
+
+</div>
+
+    <!-- STAT CARDS -->
+
+    <div class="row g-4">
+
+
+        <!-- USERS -->
 
         <div class="col-md-3">
 
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm h-100">
 
                 <div class="card-body p-4">
 
@@ -131,7 +153,9 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
                     </p>
 
                     <h2 class="fw-bold">
-                        <?php echo $total_users; ?>
+
+                        <?php echo $totalUsers; ?>
+
                     </h2>
 
                 </div>
@@ -141,20 +165,24 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
         </div>
 
 
+        <!-- FOOD -->
+
         <div class="col-md-3">
 
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm h-100">
 
                 <div class="card-body p-4">
 
-                    <i class="bi bi-burger fs-2 text-success"></i>
+                    <i class="bi bi-cup-hot fs-2 text-warning"></i>
 
                     <p class="text-muted mt-3 mb-1">
                         Menu Items
                     </p>
 
                     <h2 class="fw-bold">
-                        <?php echo $total_foods; ?>
+
+                        <?php echo $totalFoods; ?>
+
                     </h2>
 
                 </div>
@@ -164,20 +192,24 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
         </div>
 
 
+        <!-- ORDERS -->
+
         <div class="col-md-3">
 
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm h-100">
 
                 <div class="card-body p-4">
 
-                    <i class="bi bi-bag-check fs-2 text-warning"></i>
+                    <i class="bi bi-bag-check fs-2 text-success"></i>
 
                     <p class="text-muted mt-3 mb-1">
                         Total Orders
                     </p>
 
                     <h2 class="fw-bold">
-                        <?php echo $total_orders; ?>
+
+                        <?php echo $totalOrders; ?>
+
                     </h2>
 
                 </div>
@@ -187,9 +219,11 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
         </div>
 
 
+        <!-- PENDING -->
+
         <div class="col-md-3">
 
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm h-100">
 
                 <div class="card-body p-4">
 
@@ -200,7 +234,9 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
                     </p>
 
                     <h2 class="fw-bold">
-                        <?php echo $pending_orders; ?>
+
+                        <?php echo $totalPending; ?>
+
                     </h2>
 
                 </div>
@@ -209,108 +245,77 @@ $pending_orders = $pending_result->fetch_assoc()["total"];
 
         </div>
 
+
     </div>
 
 
-    <!-- ADMIN ACTIONS -->
+    <!-- MANAGEMENT -->
 
-    <h4 class="fw-bold mb-3">
-        Management
-    </h4>
-
-    <div class="row g-4">
+    <div class="row g-4 mt-4">
 
 
-        <div class="col-md-4">
+        <div class="col-md-6">
 
-            <a
-                href="manage-menu.php"
-                class="text-decoration-none">
+            <div class="card border-0 shadow-sm">
 
-                <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
 
-                    <div class="card-body p-4">
+                    <h4 class="fw-bold">
+                        Manage Menu
+                    </h4>
 
-                        <i class="bi bi-card-list fs-2"></i>
+                    <p class="text-muted">
+                        Add, edit or remove food items.
+                    </p>
 
-                        <h5 class="mt-3 text-dark">
-                            Manage Menu
-                        </h5>
+                    <a
+                        href="foods.php"
+                        class="btn btn-dark">
 
-                        <p class="text-muted mb-0">
-                            Add, edit or remove food items.
-                        </p>
+                        Manage Food
 
-                    </div>
+                    </a>
 
                 </div>
 
-            </a>
+            </div>
 
         </div>
 
 
-        <div class="col-md-4">
+        <div class="col-md-6">
 
-            <a
-                href="manage-orders.php"
-                class="text-decoration-none">
+            <div class="card border-0 shadow-sm">
 
-                <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
 
-                    <div class="card-body p-4">
+                    <h4 class="fw-bold">
+                        Manage Orders
+                    </h4>
 
-                        <i class="bi bi-bag fs-2"></i>
+                    <p class="text-muted">
+                        View orders and update their status.
+                    </p>
 
-                        <h5 class="mt-3 text-dark">
-                            Manage Orders
-                        </h5>
+                    <a
+                        href="orders.php"
+                        class="btn btn-dark">
 
-                        <p class="text-muted mb-0">
-                            View orders and update their status.
-                        </p>
+                        Manage Orders
 
-                    </div>
-
-                </div>
-
-            </a>
-
-        </div>
-
-
-        <div class="col-md-4">
-
-            <a
-                href="manage-users.php"
-                class="text-decoration-none">
-
-                <div class="card border-0 shadow-sm h-100">
-
-                    <div class="card-body p-4">
-
-                        <i class="bi bi-people fs-2"></i>
-
-                        <h5 class="mt-3 text-dark">
-                            Manage Users
-                        </h5>
-
-                        <p class="text-muted mb-0">
-                            View registered customers.
-                        </p>
-
-                    </div>
+                    </a>
 
                 </div>
 
-            </a>
+            </div>
 
         </div>
+
 
     </div>
 
 </div>
 
-</body>
 
+</body>
 </html>

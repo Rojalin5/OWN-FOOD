@@ -4,21 +4,21 @@ session_start();
 
 require_once("../config/db.php");
 
-// Must be logged in
+// Admin protection
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../log-in.php");
     exit();
 }
 
-// Must be admin
-if ($_SESSION["role"] !== "admin") {
+if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "admin") {
     header("Location: ../user/dashboard.php");
     exit();
 }
 
-// Food ID must exist
-if (!isset($_GET["id"])) {
-    header("Location: manage-menu.php");
+
+// Check food ID
+if (!isset($_GET["id"]) || !is_numeric($_GET["id"])) {
+    header("Location: foods.php");
     exit();
 }
 
@@ -31,90 +31,150 @@ $stmt = $conn->prepare(
 );
 
 $stmt->bind_param("i", $food_id);
+
 $stmt->execute();
 
 $result = $stmt->get_result();
 
+
+// Food not found
 if ($result->num_rows !== 1) {
-    header("Location: manage-menu.php");
+    header("Location: foods.php");
     exit();
 }
 
 $food = $result->fetch_assoc();
 
+$error = "";
 
+
+// ========================================
 // UPDATE FOOD
+// ========================================
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = trim($_POST["name"]);
     $description = trim($_POST["description"]);
-    $price = (float) $_POST["price"];
     $category = trim($_POST["category"]);
-    $image = trim($_POST["image"]);
-    $is_available = (int) $_POST["is_available"];
+    $price = $_POST["price"];
+    $is_available = $_POST["is_available"];
 
 
-    $update = $conn->prepare(
-        "UPDATE menu_items
-         SET
-            name = ?,
-            description = ?,
-            price = ?,
-            category = ?,
-            image = ?,
-            is_available = ?
-         WHERE id = ?"
-    );
+    if (
+        empty($name) ||
+        empty($category) ||
+        empty($price)
+    ) {
 
-
-    $update->bind_param(
-        "ssdssii",
-        $name,
-        $description,
-        $price,
-        $category,
-        $image,
-        $is_available,
-        $food_id
-    );
-
-
-    if ($update->execute()) {
-
-        header("Location: manage-menu.php");
-        exit();
+        $error = "Please fill all required fields.";
 
     } else {
 
-        $error = "Unable to update food.";
+        $update_stmt = $conn->prepare(
+            "UPDATE menu_items
+             SET
+                name = ?,
+                description = ?,
+                category = ?,
+                price = ?,
+                is_available = ?
+             WHERE id = ?"
+        );
+
+        $update_stmt->bind_param(
+            "sssdii",
+            $name,
+            $description,
+            $category,
+            $price,
+            $is_available,
+            $food_id
+        );
+
+
+        if ($update_stmt->execute()) {
+
+            header("Location: foods.php");
+            exit();
+
+        } else {
+
+            $error = "Unable to update food item.";
+        }
     }
 }
 
 ?>
 
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
 
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <title>Edit Food | OwnFood</title>
+    <title>Edit Food | OwnFood Admin</title>
 
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
-        rel="stylesheet">
+        rel="stylesheet"
+    >
 
     <link
         rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    >
 
 </head>
 
 <body class="bg-light">
+
+
+<!-- NAVBAR -->
+
+<nav class="navbar bg-white border-bottom">
+
+    <div class="container py-2">
+
+        <a
+            href="dashboard.php"
+            class="navbar-brand fw-bold"
+        >
+            🍔 OwnFood Admin
+        </a>
+
+
+        <div>
+
+            <a
+                href="foods.php"
+                class="btn btn-outline-dark btn-sm me-2"
+            >
+                Manage Food
+            </a>
+
+            <a
+                href="../auth/logout.php"
+                class="btn btn-outline-danger btn-sm"
+            >
+                Logout
+            </a>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+<!-- CONTENT -->
 
 <div class="container py-5">
 
@@ -122,46 +182,54 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <div class="col-lg-7">
 
-            <a href="manage-menu.php"
-               class="text-decoration-none">
 
-                <i class="bi bi-arrow-left"></i>
-                Manage Menu
+            <div class="mb-4">
 
-            </a>
+                <a
+                    href="foods.php"
+                    class="text-decoration-none text-dark"
+                >
+
+                    <i class="bi bi-arrow-left"></i>
+                    Back to Food
+
+                </a>
+
+                <h2 class="fw-bold mt-3 mb-1">
+                    Edit Food
+                </h2>
+
+                <p class="text-muted">
+                    Update this menu item.
+                </p>
+
+            </div>
 
 
-            <div class="card border-0 shadow-sm mt-3">
+            <?php if (!empty($error)) { ?>
+
+                <div class="alert alert-danger">
+
+                    <?php echo htmlspecialchars($error); ?>
+
+                </div>
+
+            <?php } ?>
+
+
+            <div class="card border-0 shadow-sm">
 
                 <div class="card-body p-4">
-
-                    <h2 class="fw-bold">
-                        Edit Food
-                    </h2>
-
-                    <p class="text-muted mb-4">
-                        Update menu item information.
-                    </p>
-
-
-                    <?php if (isset($error)) { ?>
-
-                        <div class="alert alert-danger">
-                            <?php echo $error; ?>
-                        </div>
-
-                    <?php } ?>
-
 
                     <form method="POST">
 
 
-                        <!-- FOOD NAME -->
+                        <!-- NAME -->
 
                         <div class="mb-3">
 
-                            <label class="form-label">
-                                Food Name
+                            <label class="form-label fw-semibold">
+                                Food Name *
                             </label>
 
                             <input
@@ -169,7 +237,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 name="name"
                                 class="form-control"
                                 value="<?php echo htmlspecialchars($food["name"]); ?>"
-                                required>
+                                required
+                            >
 
                         </div>
 
@@ -178,35 +247,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                         <div class="mb-3">
 
-                            <label class="form-label">
+                            <label class="form-label fw-semibold">
                                 Description
                             </label>
 
                             <textarea
                                 name="description"
                                 class="form-control"
-                                rows="3"
-                                required><?php echo htmlspecialchars($food["description"]); ?></textarea>
-
-                        </div>
-
-
-                        <!-- PRICE -->
-
-                        <div class="mb-3">
-
-                            <label class="form-label">
-                                Price
-                            </label>
-
-                            <input
-                                type="number"
-                                name="price"
-                                class="form-control"
-                                step="0.01"
-                                min="1"
-                                value="<?php echo $food["price"]; ?>"
-                                required>
+                                rows="4"
+                            ><?php echo htmlspecialchars($food["description"]); ?></textarea>
 
                         </div>
 
@@ -215,104 +264,70 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                         <div class="mb-3">
 
-                            <label class="form-label">
-                                Category
+                            <label class="form-label fw-semibold">
+                                Category *
                             </label>
 
                             <select
                                 name="category"
                                 class="form-select"
-                                required>
-
-                                <?php
-
-                                $categories = [
-                                    "Burger",
-                                    "Pizza",
-                                    "Biryani",
-                                    "Indian",
-                                    "Chinese",
-                                    "Snacks",
-                                    "Dessert",
-                                    "Drinks"
-                                ];
-
-                                foreach ($categories as $category) {
-
-                                ?>
-
-                                    <option
-                                        value="<?php echo $category; ?>"
-
-                                        <?php
-                                        if ($food["category"] === $category) {
-                                            echo "selected";
-                                        }
-                                        ?>>
-
-                                        <?php echo $category; ?>
-
-                                    </option>
-
-                                <?php } ?>
-
-                            </select>
-
-                        </div>
-
-
-                        <!-- IMAGE -->
-
-                        <div class="mb-3">
-
-                            <label class="form-label">
-                                Image
-                            </label>
-
-                            <input
-                                type="text"
-                                name="image"
-                                class="form-control"
-                                value="<?php echo htmlspecialchars($food["image"] ?? ""); ?>">
-
-                        </div>
-
-
-                        <!-- AVAILABILITY -->
-
-                        <div class="mb-4">
-
-                            <label class="form-label">
-                                Availability
-                            </label>
-
-                            <select
-                                name="is_available"
-                                class="form-select">
+                                required
+                            >
 
                                 <option
-                                    value="1"
-                                    <?php
-                                    if ($food["is_available"] == 1) {
-                                        echo "selected";
-                                    }
-                                    ?>>
-
-                                    Available
-
+                                    value="Burger"
+                                    <?php echo $food["category"] === "Burger" ? "selected" : ""; ?>
+                                >
+                                    Burger
                                 </option>
 
+                                <option
+                                    value="Pizza"
+                                    <?php echo $food["category"] === "Pizza" ? "selected" : ""; ?>
+                                >
+                                    Pizza
+                                </option>
 
                                 <option
-                                    value="0"
-                                    <?php
-                                    if ($food["is_available"] == 0) {
-                                        echo "selected";
-                                    }
-                                    ?>>
+                                    value="Biryani"
+                                    <?php echo $food["category"] === "Biryani" ? "selected" : ""; ?>
+                                >
+                                    Biryani
+                                </option>
 
-                                    Unavailable
+                                <option
+                                    value="Main Course"
+                                    <?php echo $food["category"] === "Main Course" ? "selected" : ""; ?>
+                                >
+                                    Main Course
+                                </option>
 
+                                <option
+                                    value="Chinese"
+                                    <?php echo $food["category"] === "Chinese" ? "selected" : ""; ?>
+                                >
+                                    Chinese
+                                </option>
+
+                                <option
+                                    value="Snacks"
+                                    <?php echo $food["category"] === "Snacks" ? "selected" : ""; ?>
+                                >
+                                    Snacks
+                                </option>
+
+                                <option
+                                    value="Dessert"
+                                    <?php echo $food["category"] === "Dessert" ? "selected" : ""; ?>
+                                >
+                                    Dessert
+                                </option>
+
+                                <option
+                                    value="Drinks"
+                                    <?php echo $food["category"] === "Drinks" ? "selected" : ""; ?>
+                                >
+                                    Drinks
                                 </option>
 
                             </select>
@@ -320,15 +335,105 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </div>
 
 
-                        <button
-                            type="submit"
-                            class="btn btn-primary w-100">
+                        <div class="row">
 
-                            <i class="bi bi-check-circle"></i>
 
-                            Update Food
+                            <!-- PRICE -->
 
-                        </button>
+                            <div class="col-md-6">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label fw-semibold">
+                                        Price *
+                                    </label>
+
+                                    <div class="input-group">
+
+                                        <span class="input-group-text">
+                                            ₹
+                                        </span>
+
+                                        <input
+                                            type="number"
+                                            name="price"
+                                            class="form-control"
+                                            min="1"
+                                            step="0.01"
+                                            value="<?php echo htmlspecialchars($food["price"]); ?>"
+                                            required
+                                        >
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- AVAILABILITY -->
+
+                            <div class="col-md-6">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label fw-semibold">
+                                        Availability
+                                    </label>
+
+                                    <select
+                                        name="is_available"
+                                        class="form-select"
+                                    >
+
+                                        <option
+                                            value="1"
+                                            <?php echo $food["is_available"] == 1 ? "selected" : ""; ?>
+                                        >
+                                            Available
+                                        </option>
+
+                                        <option
+                                            value="0"
+                                            <?php echo $food["is_available"] == 0 ? "selected" : ""; ?>
+                                        >
+                                            Unavailable
+                                        </option>
+
+                                    </select>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- BUTTONS -->
+
+                        <div class="d-flex gap-2 mt-3">
+
+                            <button
+                                type="submit"
+                                class="btn btn-primary"
+                            >
+
+                                <i class="bi bi-check-lg"></i>
+
+                                Update Food
+
+                            </button>
+
+
+                            <a
+                                href="foods.php"
+                                class="btn btn-outline-secondary"
+                            >
+                                Cancel
+                            </a>
+
+                        </div>
+
 
                     </form>
 
@@ -342,6 +447,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 </div>
 
-</body>
 
+</body>
 </html>

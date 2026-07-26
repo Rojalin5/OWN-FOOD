@@ -4,55 +4,74 @@ session_start();
 
 require_once("../config/db.php");
 
-// Must be logged in
+// Admin protection
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../log-in.php");
     exit();
 }
 
-// Must be admin
-if ($_SESSION["role"] !== "admin") {
+if (!isset($_SESSION["role"]) || $_SESSION["role"] !== "admin") {
     header("Location: ../user/dashboard.php");
     exit();
 }
 
 $message = "";
+$error = "";
+
 
 // Form submitted
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = trim($_POST["name"]);
     $description = trim($_POST["description"]);
-    $price = (float) $_POST["price"];
     $category = trim($_POST["category"]);
-    $image = trim($_POST["image"]);
-    $is_available = (int) $_POST["is_available"];
+    $price = $_POST["price"];
+    $is_available = $_POST["is_available"];
 
-    // Insert food
-    $stmt = $conn->prepare(
-        "INSERT INTO menu_items
-        (name, description, price, category, image, is_available)
-        VALUES (?, ?, ?, ?, ?, ?)"
-    );
 
-    $stmt->bind_param(
-        "ssdssi",
-        $name,
-        $description,
-        $price,
-        $category,
-        $image,
-        $is_available
-    );
+    // Basic validation
+    if (
+        empty($name) ||
+        empty($category) ||
+        empty($price)
+    ) {
 
-    if ($stmt->execute()) {
-
-        header("Location: manage-menu.php");
-        exit();
+        $error = "Please fill all required fields.";
 
     } else {
 
-        $message = "Failed to add food item.";
+        $stmt = $conn->prepare(
+            "INSERT INTO menu_items
+            (
+                name,
+                description,
+                category,
+                price,
+                is_available
+            )
+            VALUES (?, ?, ?, ?, ?)"
+        );
+
+        $stmt->bind_param(
+            "sssdi",
+            $name,
+            $description,
+            $category,
+            $price,
+            $is_available
+        );
+
+
+        if ($stmt->execute()) {
+
+            header("Location: foods.php");
+            exit();
+
+        } else {
+
+            $error = "Unable to add food item.";
+
+        }
     }
 }
 
@@ -64,22 +83,67 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
 
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
 
-    <title>Add Food | OwnFood</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Add Food | OwnFood Admin</title>
 
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
-        rel="stylesheet">
+        rel="stylesheet"
+    >
 
     <link
         rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    >
 
 </head>
 
 <body class="bg-light">
+
+
+<!-- NAVBAR -->
+
+<nav class="navbar bg-white border-bottom">
+
+    <div class="container py-2">
+
+        <a
+            href="dashboard.php"
+            class="navbar-brand fw-bold"
+        >
+            🍔 OwnFood Admin
+        </a>
+
+
+        <div>
+
+            <a
+                href="foods.php"
+                class="btn btn-outline-dark btn-sm me-2"
+            >
+                Manage Food
+            </a>
+
+            <a
+                href="../auth/logout.php"
+                class="btn btn-outline-danger btn-sm"
+            >
+                Logout
+            </a>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+<!-- CONTENT -->
 
 <div class="container py-5">
 
@@ -87,46 +151,60 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <div class="col-lg-7">
 
-            <a href="manage-menu.php"
-               class="text-decoration-none">
 
-                <i class="bi bi-arrow-left"></i>
-                Manage Menu
+            <!-- HEADER -->
 
-            </a>
+            <div class="mb-4">
 
-            <div class="card border-0 shadow-sm mt-3">
+                <a
+                    href="foods.php"
+                    class="text-decoration-none text-dark"
+                >
+                    <i class="bi bi-arrow-left"></i>
+                    Back to Food
+                </a>
+
+                <h2 class="fw-bold mt-3 mb-1">
+                    Add New Food
+                </h2>
+
+                <p class="text-muted">
+                    Add a new item to the OwnFood menu.
+                </p>
+
+            </div>
+
+
+            <!-- ERROR -->
+
+            <?php if (!empty($error)) { ?>
+
+                <div class="alert alert-danger">
+
+                    <?php
+                    echo htmlspecialchars($error);
+                    ?>
+
+                </div>
+
+            <?php } ?>
+
+
+            <!-- FORM -->
+
+            <div class="card border-0 shadow-sm">
 
                 <div class="card-body p-4">
-
-                    <h2 class="fw-bold mb-1">
-                        Add New Food
-                    </h2>
-
-                    <p class="text-muted mb-4">
-                        Add a new item to the OwnFood menu.
-                    </p>
-
-                    <?php if ($message != "") { ?>
-
-                        <div class="alert alert-danger">
-
-                            <?php echo $message; ?>
-
-                        </div>
-
-                    <?php } ?>
-
 
                     <form method="POST">
 
 
-                        <!-- NAME -->
+                        <!-- FOOD NAME -->
 
                         <div class="mb-3">
 
-                            <label class="form-label">
-                                Food Name
+                            <label class="form-label fw-semibold">
+                                Food Name *
                             </label>
 
                             <input
@@ -134,7 +212,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 name="name"
                                 class="form-control"
                                 placeholder="Example: Chicken Burger"
-                                required>
+                                required
+                            >
 
                         </div>
 
@@ -143,36 +222,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                         <div class="mb-3">
 
-                            <label class="form-label">
+                            <label class="form-label fw-semibold">
                                 Description
                             </label>
 
                             <textarea
                                 name="description"
                                 class="form-control"
-                                rows="3"
-                                placeholder="Food description"
-                                required></textarea>
-
-                        </div>
-
-
-                        <!-- PRICE -->
-
-                        <div class="mb-3">
-
-                            <label class="form-label">
-                                Price
-                            </label>
-
-                            <input
-                                type="number"
-                                name="price"
-                                class="form-control"
-                                min="1"
-                                step="0.01"
-                                placeholder="199"
-                                required>
+                                rows="4"
+                                placeholder="Write a short description..."
+                            ></textarea>
 
                         </div>
 
@@ -181,14 +240,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                         <div class="mb-3">
 
-                            <label class="form-label">
-                                Category
+                            <label class="form-label fw-semibold">
+                                Category *
                             </label>
 
                             <select
                                 name="category"
                                 class="form-select"
-                                required>
+                                required
+                            >
 
                                 <option value="">
                                     Select Category
@@ -206,8 +266,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                     Biryani
                                 </option>
 
-                                <option value="Indian">
-                                    Indian
+                                <option value="Main Course">
+                                    Main Course
                                 </option>
 
                                 <option value="Chinese">
@@ -231,60 +291,99 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </div>
 
 
-                        <!-- IMAGE -->
+                        <div class="row">
 
-                        <div class="mb-3">
 
-                            <label class="form-label">
-                                Image
-                            </label>
+                            <!-- PRICE -->
 
-                            <input
-                                type="text"
-                                name="image"
-                                class="form-control"
-                                placeholder="Example: chicken-burger.png">
+                            <div class="col-md-6">
 
-                            <small class="text-muted">
-                                You can update the image filename or URL later.
-                            </small>
+                                <div class="mb-3">
+
+                                    <label class="form-label fw-semibold">
+                                        Price *
+                                    </label>
+
+                                    <div class="input-group">
+
+                                        <span class="input-group-text">
+                                            ₹
+                                        </span>
+
+                                        <input
+                                            type="number"
+                                            name="price"
+                                            class="form-control"
+                                            min="1"
+                                            step="0.01"
+                                            placeholder="199"
+                                            required
+                                        >
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- AVAILABILITY -->
+
+                            <div class="col-md-6">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label fw-semibold">
+                                        Availability
+                                    </label>
+
+                                    <select
+                                        name="is_available"
+                                        class="form-select"
+                                    >
+
+                                        <option value="1">
+                                            Available
+                                        </option>
+
+                                        <option value="0">
+                                            Unavailable
+                                        </option>
+
+                                    </select>
+
+                                </div>
+
+                            </div>
 
                         </div>
 
 
-                        <!-- AVAILABILITY -->
+                        <!-- BUTTONS -->
 
-                        <div class="mb-4">
+                        <div class="d-flex gap-2 mt-3">
 
-                            <label class="form-label">
-                                Availability
-                            </label>
+                            <button
+                                type="submit"
+                                class="btn btn-success"
+                            >
 
-                            <select
-                                name="is_available"
-                                class="form-select">
+                                <i class="bi bi-plus-lg"></i>
 
-                                <option value="1">
-                                    Available
-                                </option>
+                                Add Food
 
-                                <option value="0">
-                                    Unavailable
-                                </option>
+                            </button>
 
-                            </select>
+
+                            <a
+                                href="foods.php"
+                                class="btn btn-outline-secondary"
+                            >
+                                Cancel
+                            </a>
 
                         </div>
 
-
-                        <button
-                            type="submit"
-                            class="btn btn-success w-100">
-
-                            <i class="bi bi-plus-circle"></i>
-                            Add Food
-
-                        </button>
 
                     </form>
 
@@ -298,6 +397,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 </div>
 
-</body>
 
+</body>
 </html>
