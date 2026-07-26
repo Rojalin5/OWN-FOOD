@@ -20,9 +20,10 @@ if (
 
 $user_id = $_SESSION["user_id"];
 
-// Get cart items
+
+// GET CART ITEMS FROM DATABASE
 $stmt = $conn->prepare(
-    "SELECT
+    "SELECT 
         cart.quantity,
         menu_items.price
      FROM cart
@@ -32,17 +33,21 @@ $stmt = $conn->prepare(
 );
 
 $stmt->bind_param("i", $user_id);
+
 $stmt->execute();
 
 $result = $stmt->get_result();
 
+
+// Cart empty
 if ($result->num_rows === 0) {
+
     header("Location: cart_user.php");
     exit();
 }
 
 
-// Calculate total
+// CALCULATE TOTAL
 $total_amount = 0;
 
 while ($item = $result->fetch_assoc()) {
@@ -52,83 +57,139 @@ while ($item = $result->fetch_assoc()) {
 }
 
 
-// Razorpay requires amount in paise
-$amount_in_paise = (int) round($total_amount * 100);
+// Razorpay uses paise
+$amount_in_paise =
+    (int) round($total_amount * 100);
 
 
-// Create Razorpay Order
-$razorpayOrder = $api->order->create([
-    "receipt" => "ownfood_" . time(),
-    "amount" => $amount_in_paise,
-    "currency" => "INR"
-]);
+// CREATE RAZORPAY ORDER
+try {
 
-$razorpay_order_id = $razorpayOrder["id"];
+    $razorpayOrder =
+        $api->order->create([
 
-// Save Razorpay order ID in session
-$_SESSION["razorpay_order_id"] = $razorpay_order_id;
+            "receipt" =>
+                "ownfood_" . time(),
+
+            "amount" =>
+                $amount_in_paise,
+
+            "currency" =>
+                "INR"
+
+        ]);
+
+} catch (Exception $e) {
+
+    die(
+        "Unable to create Razorpay order: "
+        . $e->getMessage()
+    );
+}
+
+
+$razorpay_order_id =
+    $razorpayOrder["id"];
+
+
+// Save server-created order ID
+$_SESSION["razorpay_order_id"] =
+    $razorpay_order_id;
 
 ?>
 
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
 
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <title>Online Payment | OwnFood</title>
+    <title>Payment | OwnFood</title>
 
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
-        rel="stylesheet">
+        rel="stylesheet"
+    >
 
 </head>
 
+
 <body class="bg-light">
+
 
 <div class="container py-5">
 
     <div class="row justify-content-center">
 
-        <div class="col-md-6">
+        <div class="col-md-6 col-lg-5">
+
 
             <div class="card border-0 shadow-sm">
 
                 <div class="card-body p-5 text-center">
 
-                    <h2 class="fw-bold">
+
+                    <h2 class="fw-bold mb-2">
                         Complete Payment
                     </h2>
 
+
                     <p class="text-muted">
-                        Pay securely using Razorpay
+                        Secure payment powered by Razorpay
                     </p>
 
-                    <h3 class="my-4">
 
-                        ₹<?php echo number_format($total_amount, 2); ?>
+                    <div class="my-5">
 
-                    </h3>
+                        <small class="text-muted">
+                            Amount to Pay
+                        </small>
+
+                        <h1 class="fw-bold mt-2">
+
+                            ₹<?php
+                            echo number_format(
+                                $total_amount,
+                                2
+                            );
+                            ?>
+
+                        </h1>
+
+                    </div>
+
 
                     <button
-                        id="pay-button"
-                        class="btn btn-success btn-lg w-100">
+                        id="payButton"
+                        class="btn btn-success btn-lg w-100"
+                    >
 
-                        Pay Now
+                        Pay ₹<?php
+                        echo number_format(
+                            $total_amount,
+                            2
+                        );
+                        ?>
 
                     </button>
 
+
                     <a
                         href="checkout.php"
-                        class="btn btn-outline-secondary w-100 mt-3">
+                        class="btn btn-outline-secondary w-100 mt-3"
+                    >
 
-                        Cancel
+                        Cancel Payment
 
                     </a>
+
 
                 </div>
 
@@ -141,68 +202,92 @@ $_SESSION["razorpay_order_id"] = $razorpay_order_id;
 </div>
 
 
+<!-- Razorpay Checkout -->
+
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
 
 <script>
 
 const options = {
 
-    key: "<?php echo htmlspecialchars($keyId); ?>",
+    key:
+        "<?php echo htmlspecialchars($keyId); ?>",
 
-    amount: "<?php echo $amount_in_paise; ?>",
+    amount:
+        "<?php echo $amount_in_paise; ?>",
 
-    currency: "INR",
+    currency:
+        "INR",
 
-    name: "OwnFood",
+    name:
+        "OwnFood",
 
-    description: "Food Order Payment",
+    description:
+        "Food Order Payment",
 
-    order_id: "<?php echo htmlspecialchars($razorpay_order_id); ?>",
+    order_id:
+        "<?php echo htmlspecialchars($razorpay_order_id); ?>",
 
-    handler: function (response) {
 
-        const form = document.createElement("form");
+    handler: function(response) {
+
+        // Create form automatically
+        const form =
+            document.createElement("form");
 
         form.method = "POST";
-        form.action = "verify-payment.php";
+
+        form.action =
+            "verify-payment.php";
 
 
-        const fields = {
+        const paymentId =
+            document.createElement("input");
 
-            razorpay_payment_id:
-                response.razorpay_payment_id,
+        paymentId.type = "hidden";
 
-            razorpay_order_id:
-                response.razorpay_order_id,
+        paymentId.name =
+            "razorpay_payment_id";
 
-            razorpay_signature:
-                response.razorpay_signature
+        paymentId.value =
+            response.razorpay_payment_id;
 
-        };
+        form.appendChild(paymentId);
 
 
-        for (const key in fields) {
+        const orderId =
+            document.createElement("input");
 
-            const input =
-                document.createElement("input");
+        orderId.type = "hidden";
 
-            input.type = "hidden";
+        orderId.name =
+            "razorpay_order_id";
 
-            input.name = key;
+        orderId.value =
+            response.razorpay_order_id;
 
-            input.value = fields[key];
+        form.appendChild(orderId);
 
-            form.appendChild(input);
-        }
+
+        const signature =
+            document.createElement("input");
+
+        signature.type = "hidden";
+
+        signature.name =
+            "razorpay_signature";
+
+        signature.value =
+            response.razorpay_signature;
+
+        form.appendChild(signature);
 
 
         document.body.appendChild(form);
 
         form.submit();
-    },
 
-    theme: {
-        color: "#198754"
     }
 
 };
@@ -213,15 +298,20 @@ const razorpay =
 
 
 document
-    .getElementById("pay-button")
-    .onclick = function (e) {
+    .getElementById("payButton")
+    .addEventListener(
+        "click",
+        function(event) {
 
-        razorpay.open();
+            event.preventDefault();
 
-        e.preventDefault();
-    };
+            razorpay.open();
+
+        }
+    );
 
 </script>
+
 
 </body>
 

@@ -149,7 +149,6 @@ $grand_total = 0;
                             </div>
 
 
-                            <!-- PAYMENT -->
 
                             <div class="mb-4">
 

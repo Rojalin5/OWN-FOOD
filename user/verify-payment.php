@@ -15,14 +15,16 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit();
 }
 
+$razorpay_payment_id =
+    $_POST["razorpay_payment_id"] ?? "";
 
-// Get Razorpay response
-$razorpay_payment_id = $_POST["razorpay_payment_id"] ?? "";
-$razorpay_order_id = $_POST["razorpay_order_id"] ?? "";
-$razorpay_signature = $_POST["razorpay_signature"] ?? "";
+$razorpay_order_id =
+    $_POST["razorpay_order_id"] ?? "";
+
+$razorpay_signature =
+    $_POST["razorpay_signature"] ?? "";
 
 
-// Check required values
 if (
     empty($razorpay_payment_id) ||
     empty($razorpay_order_id) ||
@@ -31,9 +33,6 @@ if (
     die("Invalid payment response.");
 }
 
-
-// IMPORTANT:
-// Compare with Razorpay order ID we created on our server
 if (
     !isset($_SESSION["razorpay_order_id"]) ||
     $_SESSION["razorpay_order_id"] !== $razorpay_order_id
@@ -44,7 +43,6 @@ if (
 
 try {
 
-    // VERIFY PAYMENT SIGNATURE
     $api->utility->verifyPaymentSignature([
 
         "razorpay_order_id" =>
@@ -64,10 +62,6 @@ try {
 }
 
 
-// ------------------------------
-// PAYMENT VERIFIED
-// ------------------------------
-
 $user_id = $_SESSION["user_id"];
 
 $phone =
@@ -77,7 +71,7 @@ $delivery_address =
     $_SESSION["checkout_address"] ?? "";
 
 
-// Get cart items again from database
+// Get cart items
 $stmt = $conn->prepare(
     "SELECT
         cart.food_id,
@@ -97,8 +91,7 @@ $result = $stmt->get_result();
 
 
 if ($result->num_rows === 0) {
-
-    die("Cart is empty.");
+    die("Your cart is empty.");
 }
 
 
@@ -117,53 +110,50 @@ while ($item = $result->fetch_assoc()) {
 }
 
 
-// START DATABASE TRANSACTION
-
 $conn->begin_transaction();
 
 
 try {
 
-    // CREATE ORDER
-
     $payment_method = "Online";
+    $payment_status = "Paid";
 
-    $payment_method = "Online";
-$payment_status = "Paid";
 
-$order = $conn->prepare(
-    "INSERT INTO orders
-    (
-        user_id,
-        total_amount,
-        delivery_address,
-        phone,
-        payment_method,
-        payment_status,
-        razorpay_payment_id
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)"
-);
+    $order_stmt = $conn->prepare(
+        "INSERT INTO orders
+        (
+            user_id,
+            total_amount,
+            delivery_address,
+            phone,
+            payment_method,
+            payment_status,
+            razorpay_payment_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
 
-$order->bind_param(
-    "idsssss",
-    $user_id,
-    $total_amount,
-    $delivery_address,
-    $phone,
-    $payment_method,
-    $payment_status,
-    $razorpay_payment_id
-);
 
-$order->execute();
+    $order_stmt->bind_param(
+        "idsssss",
+        $user_id,
+        $total_amount,
+        $delivery_address,
+        $phone,
+        $payment_method,
+        $payment_status,
+        $razorpay_payment_id
+    );
 
-    // Get OwnFood order ID
 
+    $order_stmt->execute();
+
+
+    // OwnFood order ID
     $order_id = $conn->insert_id;
 
 
-    // SAVE ORDER ITEMS
+    // INSERT ORDER ITEMS
 
     $item_stmt = $conn->prepare(
         "INSERT INTO order_items
@@ -201,35 +191,32 @@ $order->execute();
     }
 
 
-    // CLEAR CART
+    // CLEAR USER CART
 
-    $delete = $conn->prepare(
+    $delete_stmt = $conn->prepare(
         "DELETE FROM cart
          WHERE user_id = ?"
     );
 
-    $delete->bind_param(
+    $delete_stmt->bind_param(
         "i",
         $user_id
     );
 
-    $delete->execute();
+    $delete_stmt->execute();
 
 
-    // SAVE EVERYTHING
-
+    // Save all database changes
     $conn->commit();
 
 
-    // Remove temporary checkout data
-
+    // Remove temporary payment session data
     unset($_SESSION["checkout_phone"]);
     unset($_SESSION["checkout_address"]);
     unset($_SESSION["razorpay_order_id"]);
 
 
-    // SUCCESS PAGE
-
+    // Go to success page
     header(
         "Location: order-success.php?order_id="
         . $order_id
@@ -243,7 +230,7 @@ $order->execute();
     $conn->rollback();
 
     die(
-        "Unable to create order: "
+        "Order could not be created: "
         . $e->getMessage()
     );
 }
